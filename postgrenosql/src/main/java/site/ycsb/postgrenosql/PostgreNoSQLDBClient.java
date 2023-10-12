@@ -65,6 +65,11 @@ public class PostgreNoSQLDBClient extends DB {
   public static final String JDBC_AUTO_COMMIT = "postgrenosql.autocommit";
 
   /**
+   * The transaction isolation level.
+   */
+  public static final String ISOLATION_LEVEL = "postgrenosql.isolationlevel";
+
+  /**
    * The primary key in the user table.
    */
   public static final String PRIMARY_KEY = "YCSB_KEY";
@@ -75,6 +80,8 @@ public class PostgreNoSQLDBClient extends DB {
   public static final String COLUMN_NAME = "YCSB_VALUE";
 
   private static final String DEFAULT_PROP = "";
+
+  private static final String DEFAULT_ISOLATION_LEVEL = "READ_COMMITTED";
 
   /**
    * Cache for already prepared statements.
@@ -102,6 +109,20 @@ public class PostgreNoSQLDBClient extends DB {
     return defaultVal;
   }
 
+  private static int toIsolationLevel(String isolationLevel) {
+    switch (isolationLevel) {
+      case "READ_COMMITTED":
+        return Connection.TRANSACTION_READ_COMMITTED;
+      case "REPEATABLE_READ":
+        return Connection.TRANSACTION_REPEATABLE_READ;
+      case "SERIALIZABLE":
+        return Connection.TRANSACTION_SERIALIZABLE;
+      default:
+        throw new UnsupportedOperationException(
+            String.format("Unsupported isolation level: %s", isolationLevel));
+    }
+  }
+
   @Override
   public void init() throws DBException {
     if (postgrenosqlDriver != null) {
@@ -112,6 +133,8 @@ public class PostgreNoSQLDBClient extends DB {
     String urls = props.getProperty(CONNECTION_URL, DEFAULT_PROP);
     String user = props.getProperty(CONNECTION_USER, DEFAULT_PROP);
     String passwd = props.getProperty(CONNECTION_PASSWD, DEFAULT_PROP);
+    int isolationLevel = toIsolationLevel(
+        props.getProperty(ISOLATION_LEVEL, DEFAULT_ISOLATION_LEVEL));
     boolean autoCommit = getBoolProperty(props, JDBC_AUTO_COMMIT, true);
 
     try {
@@ -123,6 +146,7 @@ public class PostgreNoSQLDBClient extends DB {
 
       postgrenosqlDriver = new Driver();
       connection = postgrenosqlDriver.connect(urls, tmpProps);
+      connection.setTransactionIsolation(isolationLevel);
       connection.setAutoCommit(autoCommit);
 
     } catch (Exception e) {
