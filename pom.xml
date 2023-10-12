@@ -193,6 +193,7 @@ LICENSE file.
     <module>nosqldb</module>
     <module>orientdb</module>
     <module>postgrenosql</module>
+    <module>postgrehstore</module>
     <module>rados</module>
     <module>redis</module>
     <module>rest</module>
