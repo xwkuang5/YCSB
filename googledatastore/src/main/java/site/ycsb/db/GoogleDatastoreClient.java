@@ -52,6 +52,7 @@ import javax.annotation.Nullable;
  */
 
 public class GoogleDatastoreClient extends DB {
+
   /**
    * Defines a MutationType used in this class.
    */
@@ -86,8 +87,8 @@ public class GoogleDatastoreClient extends DB {
   private static boolean skipIndex = true;
 
   /**
-   * Initialize any state for this DB. Called once per DB instance; there is
-   * one DB instance per client thread.
+   * Initialize any state for this DB. Called once per DB instance; there is one DB instance per
+   * client thread.
    */
   @Override
   public void init() throws DBException {
@@ -113,6 +114,7 @@ public class GoogleDatastoreClient extends DB {
       throw new DBException(
           "Required property \"datasetId\" missing.");
     }
+    String databaseId = getProperties().getProperty("googledatastore.databaseId", "(default)");
 
     String privateKeyFile = getProperties().getProperty(
         "googledatastore.privateKeyFile", null);
@@ -171,7 +173,9 @@ public class GoogleDatastoreClient extends DB {
       }
 
       datastore = DatastoreFactory.get().create(
-          options.credential(credential).projectId(datasetId).build());
+          options.credential(credential).projectId(datasetId)
+              .databaseId(databaseId)
+              .build());
 
     } catch (GeneralSecurityException exception) {
       throw new DBException("Security error connecting to the datastore: " +
@@ -188,7 +192,7 @@ public class GoogleDatastoreClient extends DB {
 
   @Override
   public Status read(String table, String key, Set<String> fields,
-          Map<String, ByteIterator> result) {
+      Map<String, ByteIterator> result) {
     LookupRequest.Builder lookupRequest = LookupRequest.newBuilder();
     lookupRequest.addKeys(buildPrimaryKey(table, key));
     lookupRequest.getReadOptionsBuilder().setReadConsistency(
@@ -248,14 +252,14 @@ public class GoogleDatastoreClient extends DB {
 
   @Override
   public Status update(String table, String key,
-                       Map<String, ByteIterator> values) {
+      Map<String, ByteIterator> values) {
 
     return doSingleItemMutation(table, key, values, MutationType.UPDATE);
   }
 
   @Override
   public Status insert(String table, String key,
-                       Map<String, ByteIterator> values) {
+      Map<String, ByteIterator> values) {
     // Use Upsert to allow overwrite of existing key instead of failing the
     // load (or run) just because the DB already has the key.
     // This is the same behavior as what other DB does here (such as
@@ -305,15 +309,15 @@ public class GoogleDatastoreClient extends DB {
         entityBuilder.getMutableProperties()
             .put(val.getKey(),
                 Value.newBuilder()
-                .setStringValue(val.getValue().toString())
-                .setExcludeFromIndexes(skipIndex).build());
+                    .setStringValue(val.getValue().toString())
+                    .setExcludeFromIndexes(skipIndex).build());
       }
       Entity entity = entityBuilder.build();
       logger.debug("entity built as: " + entity.toString());
 
       if (mutationType == MutationType.UPSERT) {
         commitRequest.addMutationsBuilder().setUpsert(entity);
-      } else if (mutationType == MutationType.UPDATE){
+      } else if (mutationType == MutationType.UPDATE) {
         commitRequest.addMutationsBuilder().setUpdate(entity);
       } else {
         throw new RuntimeException("Impossible MutationType, code bug.");
