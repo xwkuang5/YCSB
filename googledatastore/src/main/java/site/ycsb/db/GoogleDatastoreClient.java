@@ -79,6 +79,7 @@ public class GoogleDatastoreClient extends DB {
 
   private String rootEntityName;
 
+  private String projectId;
   private String databaseId = DEFAULT_DATABASE_ID;
 
   private Datastore datastore = null;
@@ -103,11 +104,12 @@ public class GoogleDatastoreClient extends DB {
 
     // We need the following 3 essential properties to initialize datastore:
     //
-    // - DatasetId,
+    // - ProjectId,
+    // - DatabaseId
     // - Path to private key file,
     // - Service account email address.
-    String datasetId = getProperties().getProperty("googledatastore.datasetId", null);
-    if (datasetId == null) {
+    projectId = getProperties().getProperty("googledatastore.datasetId", null);
+    if (projectId == null) {
       throw new DBException("Required property \"datasetId\" missing.");
     }
     databaseId = getProperties().getProperty("googledatastore.databaseId", DEFAULT_DATABASE_ID);
@@ -157,16 +159,16 @@ public class GoogleDatastoreClient extends DB {
         credential = DatastoreHelper.getServiceAccountCredential(serviceAccountEmail,
             privateKeyFile);
         logger.info("Using JWT Service Account credential.");
-        logger.info("DatasetID: " + datasetId + ", Service Account Email: " + serviceAccountEmail
+        logger.info("DatasetID: " + projectId + ", Service Account Email: " + serviceAccountEmail
             + ", Private Key File Path: " + privateKeyFile);
       } else {
         logger.info("Using default gcloud credential.");
-        logger.info("DatasetID: " + datasetId + ", Service Account Email: "
+        logger.info("DatasetID: " + projectId + ", Service Account Email: "
             + ((GoogleCredential) credential).getServiceAccountId());
       }
 
       datastore = DatastoreFactory.get()
-          .create(options.credential(credential).projectId(datasetId).build());
+          .create(options.credential(credential).projectId(projectId).build());
 
     } catch (GeneralSecurityException exception) {
       throw new DBException("Security error connecting to the datastore: " + exception.getMessage(),
@@ -184,6 +186,7 @@ public class GoogleDatastoreClient extends DB {
   public Status read(String table, String key, Set<String> fields,
       Map<String, ByteIterator> result) {
     LookupRequest.Builder lookupRequest = LookupRequest.newBuilder();
+    lookupRequest.setProjectId(projectId);
     lookupRequest.setDatabaseId(databaseId);
     lookupRequest.addKeys(buildPrimaryKey(table, key));
     lookupRequest.getReadOptionsBuilder().setReadConsistency(this.readConsistency);
@@ -278,6 +281,7 @@ public class GoogleDatastoreClient extends DB {
     // for multi-item mutation, or Read-modify-write operation.
     CommitRequest.Builder commitRequest = CommitRequest.newBuilder();
     commitRequest.setMode(Mode.NON_TRANSACTIONAL);
+    commitRequest.setProjectId(projectId);
     commitRequest.setDatabaseId(databaseId);
 
     if (mutationType == MutationType.DELETE) {
