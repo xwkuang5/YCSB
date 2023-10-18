@@ -57,30 +57,29 @@ public class GoogleDatastoreClient extends DB {
    * Defines a MutationType used in this class.
    */
   private enum MutationType {
-    UPSERT,
-    UPDATE,
-    DELETE
+    UPSERT, UPDATE, DELETE
   }
 
   /**
    * Defines a EntityGroupingMode enum used in this class.
    */
   private enum EntityGroupingMode {
-    ONE_ENTITY_PER_GROUP,
-    MULTI_ENTITY_PER_GROUP
+    ONE_ENTITY_PER_GROUP, MULTI_ENTITY_PER_GROUP
   }
 
-  private static Logger logger =
-      Logger.getLogger(GoogleDatastoreClient.class);
+  private static final String DEFAULT_DATABASE_ID = "";
+
+  private static Logger logger = Logger.getLogger(GoogleDatastoreClient.class);
 
   // Read consistency defaults to "STRONG" per YCSB guidance.
   // User can override this via configure.
   private ReadConsistency readConsistency = ReadConsistency.STRONG;
 
-  private EntityGroupingMode entityGroupingMode =
-      EntityGroupingMode.ONE_ENTITY_PER_GROUP;
+  private EntityGroupingMode entityGroupingMode = EntityGroupingMode.ONE_ENTITY_PER_GROUP;
 
   private String rootEntityName;
+
+  private String databaseId = DEFAULT_DATABASE_ID;
 
   private Datastore datastore = null;
 
@@ -97,8 +96,7 @@ public class GoogleDatastoreClient extends DB {
       logger.setLevel(Level.DEBUG);
     }
 
-    String skipIndexString = getProperties().getProperty(
-        "googledatastore.skipIndex", null);
+    String skipIndexString = getProperties().getProperty("googledatastore.skipIndex", null);
     if (null != skipIndexString && "false".equalsIgnoreCase(skipIndexString)) {
       skipIndex = false;
     }
@@ -108,30 +106,26 @@ public class GoogleDatastoreClient extends DB {
     // - DatasetId,
     // - Path to private key file,
     // - Service account email address.
-    String datasetId = getProperties().getProperty(
-        "googledatastore.datasetId", null);
+    String datasetId = getProperties().getProperty("googledatastore.datasetId", null);
     if (datasetId == null) {
-      throw new DBException(
-          "Required property \"datasetId\" missing.");
+      throw new DBException("Required property \"datasetId\" missing.");
     }
-    String databaseId = getProperties().getProperty("googledatastore.databaseId", "(default)");
+    databaseId = getProperties().getProperty("googledatastore.databaseId", DEFAULT_DATABASE_ID);
 
-    String privateKeyFile = getProperties().getProperty(
-        "googledatastore.privateKeyFile", null);
-    String serviceAccountEmail = getProperties().getProperty(
-        "googledatastore.serviceAccountEmail", null);
+    String privateKeyFile = getProperties().getProperty("googledatastore.privateKeyFile", null);
+    String serviceAccountEmail = getProperties().getProperty("googledatastore.serviceAccountEmail",
+        null);
 
     // Below are properties related to benchmarking.
 
-    String readConsistencyConfig = getProperties().getProperty(
-        "googledatastore.readConsistency", null);
+    String readConsistencyConfig = getProperties().getProperty("googledatastore.readConsistency",
+        null);
     if (readConsistencyConfig != null) {
       try {
-        this.readConsistency = ReadConsistency.valueOf(
-            readConsistencyConfig.trim().toUpperCase());
+        this.readConsistency = ReadConsistency.valueOf(readConsistencyConfig.trim().toUpperCase());
       } catch (IllegalArgumentException e) {
-        throw new DBException("Invalid read consistency specified: " +
-            readConsistencyConfig + ". Expecting STRONG or EVENTUAL.");
+        throw new DBException("Invalid read consistency specified: " + readConsistencyConfig
+            + ". Expecting STRONG or EVENTUAL.");
       }
     }
 
@@ -139,21 +133,20 @@ public class GoogleDatastoreClient extends DB {
     // Entity Grouping Mode (googledatastore.entitygroupingmode), see
     // documentation in conf/googledatastore.properties.
     //
-    String entityGroupingConfig = getProperties().getProperty(
-        "googledatastore.entityGroupingMode", null);
+    String entityGroupingConfig = getProperties().getProperty("googledatastore.entityGroupingMode",
+        null);
     if (entityGroupingConfig != null) {
       try {
         this.entityGroupingMode = EntityGroupingMode.valueOf(
             entityGroupingConfig.trim().toUpperCase());
       } catch (IllegalArgumentException e) {
-        throw new DBException("Invalid entity grouping mode specified: " +
-            entityGroupingConfig + ". Expecting ONE_ENTITY_PER_GROUP or " +
-            "MULTI_ENTITY_PER_GROUP.");
+        throw new DBException("Invalid entity grouping mode specified: " + entityGroupingConfig
+            + ". Expecting ONE_ENTITY_PER_GROUP or " + "MULTI_ENTITY_PER_GROUP.");
       }
     }
 
-    this.rootEntityName = getProperties().getProperty(
-        "googledatastore.rootEntityName", "YCSB_ROOT_ENTITY");
+    this.rootEntityName = getProperties().getProperty("googledatastore.rootEntityName",
+        "YCSB_ROOT_ENTITY");
 
     try {
       // Setup the connection to Google Cloud Datastore with the credentials
@@ -161,42 +154,39 @@ public class GoogleDatastoreClient extends DB {
       DatastoreOptions.Builder options = new DatastoreOptions.Builder();
       Credential credential = GoogleCredential.getApplicationDefault();
       if (serviceAccountEmail != null && privateKeyFile != null) {
-        credential = DatastoreHelper.getServiceAccountCredential(
-            serviceAccountEmail, privateKeyFile);
+        credential = DatastoreHelper.getServiceAccountCredential(serviceAccountEmail,
+            privateKeyFile);
         logger.info("Using JWT Service Account credential.");
-        logger.info("DatasetID: " + datasetId + ", Service Account Email: " +
-            serviceAccountEmail + ", Private Key File Path: " + privateKeyFile);
+        logger.info("DatasetID: " + datasetId + ", Service Account Email: " + serviceAccountEmail
+            + ", Private Key File Path: " + privateKeyFile);
       } else {
         logger.info("Using default gcloud credential.");
-        logger.info("DatasetID: " + datasetId
-            + ", Service Account Email: " + ((GoogleCredential) credential).getServiceAccountId());
+        logger.info("DatasetID: " + datasetId + ", Service Account Email: "
+            + ((GoogleCredential) credential).getServiceAccountId());
       }
 
-      datastore = DatastoreFactory.get().create(
-          options.credential(credential).projectId(datasetId)
-              .databaseId(databaseId)
-              .build());
+      datastore = DatastoreFactory.get()
+          .create(options.credential(credential).projectId(datasetId).build());
 
     } catch (GeneralSecurityException exception) {
-      throw new DBException("Security error connecting to the datastore: " +
-          exception.getMessage(), exception);
+      throw new DBException("Security error connecting to the datastore: " + exception.getMessage(),
+          exception);
 
     } catch (IOException exception) {
-      throw new DBException("I/O error connecting to the datastore: " +
-          exception.getMessage(), exception);
+      throw new DBException("I/O error connecting to the datastore: " + exception.getMessage(),
+          exception);
     }
 
-    logger.info("Datastore client instance created: " +
-        datastore.toString());
+    logger.info("Datastore client instance created: " + datastore.toString());
   }
 
   @Override
   public Status read(String table, String key, Set<String> fields,
       Map<String, ByteIterator> result) {
     LookupRequest.Builder lookupRequest = LookupRequest.newBuilder();
+    lookupRequest.setDatabaseId(databaseId);
     lookupRequest.addKeys(buildPrimaryKey(table, key));
-    lookupRequest.getReadOptionsBuilder().setReadConsistency(
-        this.readConsistency);
+    lookupRequest.getReadOptionsBuilder().setReadConsistency(this.readConsistency);
     // Note above, datastore lookupRequest always reads the entire entity, it
     // does not support reading a subset of "fields" (properties) of an entity.
 
@@ -208,10 +198,8 @@ public class GoogleDatastoreClient extends DB {
 
     } catch (DatastoreException exception) {
       logger.error(
-          String.format("Datastore Exception when reading (%s): %s %s",
-              exception.getMessage(),
-              exception.getMethodName(),
-              exception.getCode()));
+          String.format("Datastore Exception when reading (%s): %s %s", exception.getMessage(),
+              exception.getMethodName(), exception.getCode()));
 
       // DatastoreException.getCode() returns an HTTP response code which we
       // will bubble up to the user as part of the YCSB Status "name".
@@ -230,13 +218,11 @@ public class GoogleDatastoreClient extends DB {
     logger.debug("Read entity: " + entity.toString());
 
     Map<String, Value> properties = entity.getProperties();
-    Set<String> propertiesToReturn =
-        (fields == null ? properties.keySet() : fields);
+    Set<String> propertiesToReturn = (fields == null ? properties.keySet() : fields);
 
     for (String name : propertiesToReturn) {
       if (properties.containsKey(name)) {
-        result.put(name, new StringByteIterator(properties.get(name)
-            .getStringValue()));
+        result.put(name, new StringByteIterator(properties.get(name).getStringValue()));
       }
     }
 
@@ -244,22 +230,20 @@ public class GoogleDatastoreClient extends DB {
   }
 
   @Override
-  public Status scan(String table, String startkey, int recordcount,
-      Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
+  public Status scan(String table, String startkey, int recordcount, Set<String> fields,
+      Vector<HashMap<String, ByteIterator>> result) {
     // TODO: Implement Scan as query on primary key.
     return Status.NOT_IMPLEMENTED;
   }
 
   @Override
-  public Status update(String table, String key,
-      Map<String, ByteIterator> values) {
+  public Status update(String table, String key, Map<String, ByteIterator> values) {
 
     return doSingleItemMutation(table, key, values, MutationType.UPDATE);
   }
 
   @Override
-  public Status insert(String table, String key,
-      Map<String, ByteIterator> values) {
+  public Status insert(String table, String key, Map<String, ByteIterator> values) {
     // Use Upsert to allow overwrite of existing key instead of failing the
     // load (or run) just because the DB already has the key.
     // This is the same behavior as what other DB does here (such as
@@ -277,17 +261,14 @@ public class GoogleDatastoreClient extends DB {
 
     if (this.entityGroupingMode == EntityGroupingMode.MULTI_ENTITY_PER_GROUP) {
       // All entities are in side the same group when we are in this mode.
-      result.addPath(Key.PathElement.newBuilder().setKind(table).
-          setName(rootEntityName));
+      result.addPath(Key.PathElement.newBuilder().setKind(table).setName(rootEntityName));
     }
 
-    return result.addPath(Key.PathElement.newBuilder().setKind(table)
-        .setName(key));
+    return result.addPath(Key.PathElement.newBuilder().setKind(table).setName(key));
   }
 
   private Status doSingleItemMutation(String table, String key,
-      @Nullable Map<String, ByteIterator> values,
-      MutationType mutationType) {
+      @Nullable Map<String, ByteIterator> values, MutationType mutationType) {
     // First build the key.
     Key.Builder datastoreKey = buildPrimaryKey(table, key);
 
@@ -297,6 +278,7 @@ public class GoogleDatastoreClient extends DB {
     // for multi-item mutation, or Read-modify-write operation.
     CommitRequest.Builder commitRequest = CommitRequest.newBuilder();
     commitRequest.setMode(Mode.NON_TRANSACTIONAL);
+    commitRequest.setDatabaseId(databaseId);
 
     if (mutationType == MutationType.DELETE) {
       commitRequest.addMutationsBuilder().setDelete(datastoreKey);
@@ -306,11 +288,9 @@ public class GoogleDatastoreClient extends DB {
       Entity.Builder entityBuilder = Entity.newBuilder();
       entityBuilder.setKey(datastoreKey);
       for (Entry<String, ByteIterator> val : values.entrySet()) {
-        entityBuilder.getMutableProperties()
-            .put(val.getKey(),
-                Value.newBuilder()
-                    .setStringValue(val.getValue().toString())
-                    .setExcludeFromIndexes(skipIndex).build());
+        entityBuilder.getMutableProperties().put(val.getKey(),
+            Value.newBuilder().setStringValue(val.getValue().toString())
+                .setExcludeFromIndexes(skipIndex).build());
       }
       Entity entity = entityBuilder.build();
       logger.debug("entity built as: " + entity.toString());
@@ -332,10 +312,8 @@ public class GoogleDatastoreClient extends DB {
       // Catch all Datastore rpc errors.
       // Log the exception, the name of the method called and the error code.
       logger.error(
-          String.format("Datastore Exception when committing (%s): %s %s",
-              exception.getMessage(),
-              exception.getMethodName(),
-              exception.getCode()));
+          String.format("Datastore Exception when committing (%s): %s %s", exception.getMessage(),
+              exception.getMethodName(), exception.getCode()));
 
       // DatastoreException.getCode() returns an HTTP response code which we
       // will bubble up to the user as part of the YCSB Status "name".
