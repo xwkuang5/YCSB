@@ -31,6 +31,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import site.ycsb.generator.NumberGenerator;
+import site.ycsb.generator.UniformLongGenerator;
+import site.ycsb.workloads.DocumentWorkload;
 
 /**
  * PostgreNoSQL client for YCSB framework.
@@ -69,6 +72,15 @@ public class PostgreNoSQLDBClient extends DB {
    */
   public static final String ISOLATION_LEVEL = "postgrenosql.isolationlevel";
 
+  enum ScanType {
+    TABLE_SCAN,
+    SINGLE_FIELD_NUMERIC_SCAN;
+  }
+
+  public static final String QUERY_TYPE = "postgrenosql.scantype";
+
+  public static final String QUERY_TYPE_DEFAULT = "tablescan";
+
   /**
    * The primary key in the user table.
    */
@@ -97,6 +109,11 @@ public class PostgreNoSQLDBClient extends DB {
    * The connection to the database.
    */
   private Connection connection;
+
+
+  private ScanType queryType;
+
+  private NumberGenerator singleFieldNumericScanNumberGenerator;
 
   /**
    * Returns parsed boolean value from the properties if set, otherwise returns defaultVal.
@@ -136,6 +153,9 @@ public class PostgreNoSQLDBClient extends DB {
     int isolationLevel = toIsolationLevel(
         props.getProperty(ISOLATION_LEVEL, DEFAULT_ISOLATION_LEVEL));
     boolean autoCommit = getBoolProperty(props, JDBC_AUTO_COMMIT, true);
+    queryType = toScanType(props.getProperty(QUERY_TYPE, QUERY_TYPE_DEFAULT));
+    singleFieldNumericScanNumberGenerator = new UniformLongGenerator(DocumentWorkload.NUMERIC_MIN,
+        DocumentWorkload.NUMERIC_MAX);
 
     try {
       Properties tmpProps = new Properties();
@@ -151,6 +171,18 @@ public class PostgreNoSQLDBClient extends DB {
 
     } catch (Exception e) {
       LOG.error("Error during initialization: " + e);
+    }
+  }
+
+  private static ScanType toScanType(String scanType) {
+    switch (scanType) {
+      case "tablescan":
+        return ScanType.TABLE_SCAN;
+      case "singlefieldnumericscan":
+        return ScanType.SINGLE_FIELD_NUMERIC_SCAN;
+      default:
+        throw new UnsupportedOperationException(String.format("Unsupported scan type: %s", scanType)
+        );
     }
   }
 
@@ -190,12 +222,20 @@ public class PostgreNoSQLDBClient extends DB {
           do {
             String field = resultSet.getString(2);
             String value = resultSet.getString(3);
-            result.put(field, new StringByteIterator(value));
+            if (field.contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+              result.put(field, new NumericByteIterator(Long.parseLong(value)));
+            } else {
+              result.put(field, new StringByteIterator(value));
+            }
           } while (resultSet.next());
         } else {
           for (String field : fields) {
             String value = resultSet.getString(field);
-            result.put(field, new StringByteIterator(value));
+            if (field.contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+              result.put(field, new NumericByteIterator(Long.parseLong(value)));
+            } else {
+              result.put(field, new StringByteIterator(value));
+            }
           }
         }
       }
@@ -217,7 +257,18 @@ public class PostgreNoSQLDBClient extends DB {
       if (scanStatement == null) {
         scanStatement = createAndCacheScanStatement(type);
       }
-      scanStatement.setString(1, startKey);
+      switch (queryType) {
+        case TABLE_SCAN:
+          scanStatement.setString(1, startKey);
+          break;
+        case SINGLE_FIELD_NUMERIC_SCAN:
+          scanStatement.setLong(1,
+              singleFieldNumericScanNumberGenerator.nextValue().longValue()
+          );
+          break;
+        default:
+          throw new AssertionError("impossible");
+      }
       scanStatement.setInt(2, recordcount);
       ResultSet resultSet = scanStatement.executeQuery();
       for (int i = 0; i < recordcount && resultSet.next(); i++) {
@@ -225,7 +276,11 @@ public class PostgreNoSQLDBClient extends DB {
           HashMap<String, ByteIterator> values = new HashMap<String, ByteIterator>();
           for (String field : fields) {
             String value = resultSet.getString(field);
-            values.put(field, new StringByteIterator(value));
+            if (field.contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+              values.put(field, new NumericByteIterator(Long.parseLong(value)));
+            } else {
+              values.put(field, new StringByteIterator(value));
+            }
           }
 
           result.add(values);
@@ -251,7 +306,11 @@ public class PostgreNoSQLDBClient extends DB {
 
       JSONObject jsonObject = new JSONObject();
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-        jsonObject.put(entry.getKey(), entry.getValue().toString());
+        if (entry.getKey().contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+          jsonObject.put(entry.getKey(), Utils.bytesToLong(entry.getValue().toArray()));
+        } else {
+          jsonObject.put(entry.getKey(), entry.getValue().toString());
+        }
       }
 
       PGobject object = new PGobject();
@@ -283,7 +342,11 @@ public class PostgreNoSQLDBClient extends DB {
 
       JSONObject jsonObject = new JSONObject();
       for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-        jsonObject.put(entry.getKey(), entry.getValue().toString());
+        if (entry.getKey().contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+          jsonObject.put(entry.getKey(), Utils.bytesToLong(entry.getValue().toArray()));
+        } else {
+          jsonObject.put(entry.getKey(), entry.getValue().toString());
+        }
       }
 
       PGobject object = new PGobject();
@@ -375,13 +438,24 @@ public class PostgreNoSQLDBClient extends DB {
     }
     scan.append(" FROM " + scanType.getTableName());
     scan.append(" WHERE ");
-    scan.append(PRIMARY_KEY);
-    scan.append(" >= ?");
-    scan.append(" ORDER BY ");
-    scan.append(PRIMARY_KEY);
+    switch (queryType) {
+      case TABLE_SCAN:
+        scan.append(PRIMARY_KEY);
+        scan.append(" >= ?");
+        scan.append(" ORDER BY ");
+        scan.append(PRIMARY_KEY);
+        break;
+      case SINGLE_FIELD_NUMERIC_SCAN:
+        scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
+        break;
+      default:
+        throw new AssertionError("impossible");
+    }
     scan.append(" LIMIT ?");
 
-    return scan.toString();
+    String result = scan.toString();
+    LOG.info("Created scan statement: " + result);
+    return result;
   }
 
   public PreparedStatement createAndCacheUpdateStatement(StatementType updateType)

@@ -1,0 +1,14 @@
+recordcount=10
+operationcount=1000
+workload=site.ycsb.workloads.DocumentWorkload
+
+fieldcount=2
+numericcount=2
+readallfields=true
+readproportion=0.5
+updateproportion=0.5
+scanproportion=0
+insertproportion=0
+
+requestdistribution=uniform
+

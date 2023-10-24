@@ -1,18 +1,15 @@
 /**
  * Copyright (c) 2010-2016 Yahoo! Inc., 2017 YCSB contributors All rights reserved.
  * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License. See accompanying
- * LICENSE file.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License. See accompanying LICENSE file.
  */
 
 package site.ycsb;
@@ -23,14 +20,18 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import site.ycsb.workloads.CoreWorkload;
+import site.ycsb.workloads.DocumentWorkload;
 
 /**
- * Basic DB that just prints out the requested operations, instead of doing them against a database.
+ * Basic DB that just prints out the requested operations, instead of doing them against a
+ * database.
  */
 public class BasicDB extends DB {
+
   public static final String COUNT = "basicdb.count";
   public static final String COUNT_DEFAULT = "false";
-  
+
   public static final String VERBOSE = "basicdb.verbose";
   public static final String VERBOSE_DEFAULT = "true";
 
@@ -47,7 +48,7 @@ public class BasicDB extends DB {
   protected static Map<Integer, Integer> updates;
   protected static Map<Integer, Integer> inserts;
   protected static Map<Integer, Integer> deletes;
-  
+
   protected boolean verbose;
   protected boolean randomizedelay;
   protected int todelay;
@@ -77,20 +78,21 @@ public class BasicDB extends DB {
   }
 
   /**
-   * Initialize any state for this DB.
-   * Called once per DB instance; there is one DB instance per client thread.
+   * Initialize any state for this DB. Called once per DB instance; there is one DB instance per
+   * client thread.
    */
   public void init() {
     verbose = Boolean.parseBoolean(getProperties().getProperty(VERBOSE, VERBOSE_DEFAULT));
     todelay = Integer.parseInt(getProperties().getProperty(SIMULATE_DELAY, SIMULATE_DELAY_DEFAULT));
-    randomizedelay = Boolean.parseBoolean(getProperties().getProperty(RANDOMIZE_DELAY, RANDOMIZE_DELAY_DEFAULT));
+    randomizedelay = Boolean.parseBoolean(
+        getProperties().getProperty(RANDOMIZE_DELAY, RANDOMIZE_DELAY_DEFAULT));
     count = Boolean.parseBoolean(getProperties().getProperty(COUNT, COUNT_DEFAULT));
     if (verbose) {
       synchronized (System.out) {
         System.out.println("***************** properties *****************");
         Properties p = getProperties();
         if (p != null) {
-          for (Enumeration e = p.propertyNames(); e.hasMoreElements();) {
+          for (Enumeration e = p.propertyNames(); e.hasMoreElements(); ) {
             String k = (String) e.nextElement();
             System.out.println("\"" + k + "\"=\"" + p.getProperty(k) + "\"");
           }
@@ -98,7 +100,7 @@ public class BasicDB extends DB {
         System.out.println("**********************************************");
       }
     }
-    
+
     synchronized (MUTEX) {
       if (counter == 0 && count) {
         reads = new HashMap<Integer, Integer>();
@@ -125,15 +127,17 @@ public class BasicDB extends DB {
   }
 
   /**
-   * Read a record from the database. Each field/value pair from the result will be stored in a HashMap.
+   * Read a record from the database. Each field/value pair from the result will be stored in a
+   * HashMap.
    *
-   * @param table  The name of the table
-   * @param key    The record key of the record to read.
+   * @param table The name of the table
+   * @param key The record key of the record to read.
    * @param fields The list of fields to read, or null for all of them
    * @param result A HashMap of field/value pairs for the result
    * @return Zero on success, a non-zero error code on error
    */
-  public Status read(String table, String key, Set<String> fields, Map<String, ByteIterator> result) {
+  public Status read(String table, String key, Set<String> fields,
+      Map<String, ByteIterator> result) {
     delay();
 
     if (verbose) {
@@ -154,28 +158,30 @@ public class BasicDB extends DB {
     if (count) {
       incCounter(reads, hash(table, key, fields));
     }
-    
+
     return Status.OK;
   }
 
   /**
-   * Perform a range scan for a set of records in the database. Each field/value pair from the result will be stored
-   * in a HashMap.
+   * Perform a range scan for a set of records in the database. Each field/value pair from the
+   * result will be stored in a HashMap.
    *
-   * @param table       The name of the table
-   * @param startkey    The record key of the first record to read.
+   * @param table The name of the table
+   * @param startkey The record key of the first record to read.
    * @param recordcount The number of records to read
-   * @param fields      The list of fields to read, or null for all of them
-   * @param result      A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
+   * @param fields The list of fields to read, or null for all of them
+   * @param result A Vector of HashMaps, where each HashMap is a set field/value pairs for one
+   *     record
    * @return Zero on success, a non-zero error code on error
    */
   public Status scan(String table, String startkey, int recordcount, Set<String> fields,
-                     Vector<HashMap<String, ByteIterator>> result) {
+      Vector<HashMap<String, ByteIterator>> result) {
     delay();
 
     if (verbose) {
       StringBuilder sb = getStringBuilder();
-      sb.append("SCAN ").append(table).append(" ").append(startkey).append(" ").append(recordcount).append(" [ ");
+      sb.append("SCAN ").append(table).append(" ").append(startkey).append(" ").append(recordcount)
+          .append(" [ ");
       if (fields != null) {
         for (String f : fields) {
           sb.append(f).append(" ");
@@ -187,7 +193,7 @@ public class BasicDB extends DB {
       sb.append("]");
       System.out.println(sb);
     }
-    
+
     if (count) {
       incCounter(scans, hash(table, startkey, fields));
     }
@@ -196,11 +202,12 @@ public class BasicDB extends DB {
   }
 
   /**
-   * Update a record in the database. Any field/value pairs in the specified values HashMap will be written into the
-   * record with the specified record key, overwriting any existing values with the same field name.
+   * Update a record in the database. Any field/value pairs in the specified values HashMap will be
+   * written into the record with the specified record key, overwriting any existing values with the
+   * same field name.
    *
-   * @param table  The name of the table
-   * @param key    The record key of the record to write.
+   * @param table The name of the table
+   * @param key The record key of the record to write.
    * @param values A HashMap of field/value pairs to update in the record
    * @return Zero on success, a non-zero error code on error
    */
@@ -212,7 +219,8 @@ public class BasicDB extends DB {
       sb.append("UPDATE ").append(table).append(" ").append(key).append(" [ ");
       if (values != null) {
         for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-          sb.append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
+          sb.append(entry.getKey()).append("=")
+              .append(formatValue(entry.getKey(), entry.getValue())).append(" ");
         }
       }
       sb.append("]");
@@ -222,16 +230,16 @@ public class BasicDB extends DB {
     if (count) {
       incCounter(updates, hash(table, key, values));
     }
-    
+
     return Status.OK;
   }
 
   /**
-   * Insert a record in the database. Any field/value pairs in the specified values HashMap will be written into the
-   * record with the specified record key.
+   * Insert a record in the database. Any field/value pairs in the specified values HashMap will be
+   * written into the record with the specified record key.
    *
-   * @param table  The name of the table
-   * @param key    The record key of the record to insert.
+   * @param table The name of the table
+   * @param key The record key of the record to insert.
    * @param values A HashMap of field/value pairs to insert in the record
    * @return Zero on success, a non-zero error code on error
    */
@@ -243,7 +251,8 @@ public class BasicDB extends DB {
       sb.append("INSERT ").append(table).append(" ").append(key).append(" [ ");
       if (values != null) {
         for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-          sb.append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
+          sb.append(entry.getKey()).append("=")
+              .append(formatValue(entry.getKey(), entry.getValue())).append(" ");
         }
       }
 
@@ -254,7 +263,7 @@ public class BasicDB extends DB {
     if (count) {
       incCounter(inserts, hash(table, key, values));
     }
-    
+
     return Status.OK;
   }
 
@@ -263,7 +272,7 @@ public class BasicDB extends DB {
    * Delete a record from the database.
    *
    * @param table The name of the table
-   * @param key   The record key of the record to delete.
+   * @param key The record key of the record to delete.
    * @return Zero on success, a non-zero error code on error
    */
   public Status delete(String table, String key) {
@@ -278,7 +287,7 @@ public class BasicDB extends DB {
     if (count) {
       incCounter(deletes, (table + key).hashCode());
     }
-    
+
     return Status.OK;
   }
 
@@ -297,9 +306,10 @@ public class BasicDB extends DB {
       }
     }
   }
-  
+
   /**
    * Increments the count on the hash in the map.
+   *
    * @param map A non-null map to sync and use for incrementing.
    * @param hash A hash code to increment.
    */
@@ -313,12 +323,12 @@ public class BasicDB extends DB {
       }
     }
   }
-  
+
   /**
-   * Hashes the table, key and fields, sorting the fields first for a consistent
-   * hash.
-   * Note that this is expensive as we generate a copy of the fields and a string
-   * buffer to hash on. Hashing on the objects is problematic.
+   * Hashes the table, key and fields, sorting the fields first for a consistent hash. Note that
+   * this is expensive as we generate a copy of the fields and a string buffer to hash on. Hashing
+   * on the objects is problematic.
+   *
    * @param table The user table.
    * @param key The key read or scanned.
    * @param fields The fields read or scanned.
@@ -336,12 +346,12 @@ public class BasicDB extends DB {
     }
     return buf.toString().hashCode();
   }
-  
+
   /**
-   * Hashes the table, key and fields, sorting the fields first for a consistent
-   * hash.
-   * Note that this is expensive as we generate a copy of the fields and a string
-   * buffer to hash on. Hashing on the objects is problematic.
+   * Hashes the table, key and fields, sorting the fields first for a consistent hash. Note that
+   * this is expensive as we generate a copy of the fields and a string buffer to hash on. Hashing
+   * on the objects is problematic.
+   *
    * @param table The user table.
    * @param key The key read or scanned.
    * @param values The values to hash on.
@@ -351,18 +361,25 @@ public class BasicDB extends DB {
     if (values == null) {
       return (table + key).hashCode();
     }
-    final TreeMap<String, ByteIterator> sorted = 
+    final TreeMap<String, ByteIterator> sorted =
         new TreeMap<String, ByteIterator>(values);
-    
+
     StringBuilder buf = getStringBuilder().append(table).append(key);
     for (final Entry<String, ByteIterator> entry : sorted.entrySet()) {
       entry.getValue().reset();
       buf.append(entry.getKey())
-         .append(entry.getValue().toString());
+          .append(entry.getValue().toString());
     }
     return buf.toString().hashCode();
   }
-  
+
+  private static String formatValue(String fieldName, ByteIterator value) {
+    if (fieldName.contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+      return String.valueOf(Utils.bytesToLong(value.toArray()));
+    }
+    return value.toString();
+  }
+
   /**
    * Short test of BasicDB
    */
