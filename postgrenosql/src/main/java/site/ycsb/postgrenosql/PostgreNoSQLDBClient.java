@@ -72,12 +72,13 @@ public class PostgreNoSQLDBClient extends DB {
    */
   public static final String ISOLATION_LEVEL = "postgrenosql.isolationlevel";
 
-  enum ScanType {
+  enum QueryType {
     TABLE_SCAN,
-    SINGLE_FIELD_NUMERIC_SCAN;
+    SINGLE_FIELD_NUMERIC_SCAN,
+    AGGREGATION;
   }
 
-  public static final String QUERY_TYPE = "postgrenosql.scantype";
+  public static final String QUERY_TYPE = "postgrenosql.querytype";
 
   public static final String QUERY_TYPE_DEFAULT = "tablescan";
 
@@ -111,7 +112,7 @@ public class PostgreNoSQLDBClient extends DB {
   private Connection connection;
 
 
-  private ScanType queryType;
+  private QueryType queryType;
 
   private NumberGenerator singleFieldNumericScanNumberGenerator;
 
@@ -174,12 +175,14 @@ public class PostgreNoSQLDBClient extends DB {
     }
   }
 
-  private static ScanType toScanType(String scanType) {
+  private static QueryType toScanType(String scanType) {
     switch (scanType) {
       case "tablescan":
-        return ScanType.TABLE_SCAN;
+        return QueryType.TABLE_SCAN;
       case "singlefieldnumericscan":
-        return ScanType.SINGLE_FIELD_NUMERIC_SCAN;
+        return QueryType.SINGLE_FIELD_NUMERIC_SCAN;
+      case "aggregation":
+        return QueryType.AGGREGATION;
       default:
         throw new UnsupportedOperationException(String.format("Unsupported scan type: %s", scanType)
         );
@@ -266,24 +269,34 @@ public class PostgreNoSQLDBClient extends DB {
               singleFieldNumericScanNumberGenerator.nextValue().longValue()
           );
           break;
+        case AGGREGATION:
+          scanStatement.setLong(1,
+              singleFieldNumericScanNumberGenerator.nextValue().longValue()
+          );
+          break;
         default:
           throw new AssertionError("impossible");
       }
       scanStatement.setInt(2, recordcount);
       ResultSet resultSet = scanStatement.executeQuery();
-      for (int i = 0; i < recordcount && resultSet.next(); i++) {
-        if (result != null && fields != null) {
-          HashMap<String, ByteIterator> values = new HashMap<String, ByteIterator>();
-          for (String field : fields) {
-            String value = resultSet.getString(field);
-            if (field.contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
-              values.put(field, new NumericByteIterator(Long.parseLong(value)));
-            } else {
-              values.put(field, new StringByteIterator(value));
+      if (queryType.equals(QueryType.AGGREGATION)) {
+        resultSet.next();
+        HashMap<String, ByteIterator> values = new HashMap<String, ByteIterator>();
+        values.put("count", new NumericByteIterator(resultSet.getLong(1)));
+      } else {
+        for (int i = 0; i < recordcount && resultSet.next(); i++) {
+          if (result != null && fields != null) {
+            HashMap<String, ByteIterator> values = new HashMap<String, ByteIterator>();
+            for (String field : fields) {
+              String value = resultSet.getString(field);
+              if (field.contains(DocumentWorkload.NUMERIC_FIELD_PREFIX)) {
+                values.put(field, new NumericByteIterator(Long.parseLong(value)));
+              } else {
+                values.put(field, new StringByteIterator(value));
+              }
             }
+            result.add(values);
           }
-
-          result.add(values);
         }
       }
 
@@ -448,12 +461,20 @@ public class PostgreNoSQLDBClient extends DB {
       case SINGLE_FIELD_NUMERIC_SCAN:
         scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
         break;
+      case AGGREGATION:
+        scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
+        break;
       default:
         throw new AssertionError("impossible");
     }
     scan.append(" LIMIT ?");
 
     String result = scan.toString();
+
+    if (queryType.equals(QueryType.AGGREGATION)) {
+      result = "SELECT COUNT(*) as count FROM (" + result + ") AS base";
+    }
+
     LOG.info("Created scan statement: " + result);
     return result;
   }
