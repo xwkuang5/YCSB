@@ -74,7 +74,8 @@ public class PostgreNoSQLDBClient extends DB {
 
   enum QueryType {
     TABLE_SCAN,
-    SINGLE_FIELD_NUMERIC_SCAN,
+    SINGLE_FIELD_NUMERIC_EQ_SCAN,
+    SINGLE_FIELD_NUMERIC_INEQ_SCAN,
     AGGREGATION;
   }
 
@@ -179,8 +180,10 @@ public class PostgreNoSQLDBClient extends DB {
     switch (scanType) {
       case "tablescan":
         return QueryType.TABLE_SCAN;
-      case "singlefieldnumericscan":
-        return QueryType.SINGLE_FIELD_NUMERIC_SCAN;
+      case "singlefieldnumericeqscan":
+        return QueryType.SINGLE_FIELD_NUMERIC_EQ_SCAN;
+      case "singlefieldnumericineqscan":
+        return QueryType.SINGLE_FIELD_NUMERIC_INEQ_SCAN;
       case "aggregation":
         return QueryType.AGGREGATION;
       default:
@@ -264,7 +267,8 @@ public class PostgreNoSQLDBClient extends DB {
         case TABLE_SCAN:
           scanStatement.setString(1, startKey);
           break;
-        case SINGLE_FIELD_NUMERIC_SCAN:
+        case SINGLE_FIELD_NUMERIC_EQ_SCAN:
+        case SINGLE_FIELD_NUMERIC_INEQ_SCAN:
           scanStatement.setLong(1,
               singleFieldNumericScanNumberGenerator.nextValue().longValue()
           );
@@ -458,7 +462,10 @@ public class PostgreNoSQLDBClient extends DB {
         scan.append(" ORDER BY ");
         scan.append(PRIMARY_KEY);
         break;
-      case SINGLE_FIELD_NUMERIC_SCAN:
+      case SINGLE_FIELD_NUMERIC_EQ_SCAN:
+        scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) = ?");
+        break;
+      case SINGLE_FIELD_NUMERIC_INEQ_SCAN:
         scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
         break;
       case AGGREGATION:
