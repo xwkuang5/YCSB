@@ -266,22 +266,22 @@ public class PostgreNoSQLDBClient extends DB {
       switch (queryType) {
         case TABLE_SCAN:
           scanStatement.setString(1, startKey);
+          scanStatement.setInt(2, recordcount);
           break;
         case SINGLE_FIELD_NUMERIC_EQ_SCAN:
+          // fall through
         case SINGLE_FIELD_NUMERIC_INEQ_SCAN:
+          scanStatement.setInt(2, recordcount);
           scanStatement.setLong(1,
               singleFieldNumericScanNumberGenerator.nextValue().longValue()
           );
           break;
         case AGGREGATION:
-          scanStatement.setLong(1,
-              singleFieldNumericScanNumberGenerator.nextValue().longValue()
-          );
+          scanStatement.setInt(1, recordcount);
           break;
         default:
           throw new AssertionError("impossible");
       }
-      scanStatement.setInt(2, recordcount);
       ResultSet resultSet = scanStatement.executeQuery();
       if (queryType.equals(QueryType.AGGREGATION)) {
         resultSet.next();
@@ -447,40 +447,41 @@ public class PostgreNoSQLDBClient extends DB {
   }
 
   private String createScanStatement(StatementType scanType) {
-    StringBuilder scan = new StringBuilder("SELECT " + PRIMARY_KEY + " AS " + PRIMARY_KEY);
-    if (scanType.getFields() != null) {
-      for (String field : scanType.getFields()) {
-        scan.append(", " + COLUMN_NAME + "->>'" + field + "' AS " + field);
+    StringBuilder scan = new StringBuilder();
+    if (queryType.equals(QueryType.AGGREGATION)) {
+      scan.append("SELECT CAST(" + COLUMN_NAME
+          + "->'field_1_numeric' AS int8) as group_number, COUNT(*) as total");
+      scan.append(" FROM " + scanType.getTableName());
+      scan.append(" GROUP BY group_number ORDER BY total DESC");
+    } else {
+      scan.append("SELECT " + PRIMARY_KEY + " AS " + PRIMARY_KEY);
+      if (scanType.getFields() != null) {
+        for (String field : scanType.getFields()) {
+          scan.append(", " + COLUMN_NAME + "->>'" + field + "' AS " + field);
+        }
       }
-    }
-    scan.append(" FROM " + scanType.getTableName());
-    scan.append(" WHERE ");
-    switch (queryType) {
-      case TABLE_SCAN:
-        scan.append(PRIMARY_KEY);
-        scan.append(" >= ?");
-        scan.append(" ORDER BY ");
-        scan.append(PRIMARY_KEY);
-        break;
-      case SINGLE_FIELD_NUMERIC_EQ_SCAN:
-        scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) = ?");
-        break;
-      case SINGLE_FIELD_NUMERIC_INEQ_SCAN:
-        scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
-        break;
-      case AGGREGATION:
-        scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
-        break;
-      default:
-        throw new AssertionError("impossible");
+      scan.append(" FROM " + scanType.getTableName());
+      scan.append(" WHERE ");
+      switch (queryType) {
+        case TABLE_SCAN:
+          scan.append(PRIMARY_KEY);
+          scan.append(" >= ?");
+          scan.append(" ORDER BY ");
+          scan.append(PRIMARY_KEY);
+          break;
+        case SINGLE_FIELD_NUMERIC_EQ_SCAN:
+          scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) = ?");
+          break;
+        case SINGLE_FIELD_NUMERIC_INEQ_SCAN:
+          scan.append("CAST( " + COLUMN_NAME + "->'field_1_numeric' AS int8) >= ?");
+          break;
+        default:
+          throw new AssertionError("impossible");
+      }
     }
     scan.append(" LIMIT ?");
 
     String result = scan.toString();
-
-    if (queryType.equals(QueryType.AGGREGATION)) {
-      result = "SELECT COUNT(*) as count FROM (" + result + ") AS base";
-    }
 
     LOG.info("Created scan statement: " + result);
     return result;

@@ -1,18 +1,15 @@
 /**
  * Copyright (c) 2010 Yahoo! Inc., Copyright (c) 2016-2020 YCSB contributors. All rights reserved.
  * <p>
- * Licensed under the Apache License, Version 2.0 (the "License"); you
- * may not use this file except in compliance with the License. You
- * may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
  * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing
- * permissions and limitations under the License. See accompanying
- * LICENSE file.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License. See accompanying LICENSE file.
  */
 
 package site.ycsb.workloads;
@@ -66,6 +63,7 @@ import java.util.*;
  * </ul>
  */
 public class CoreWorkload extends Workload {
+
   /**
    * The name of the database table to run queries against.
    */
@@ -87,7 +85,7 @@ public class CoreWorkload extends Workload {
    * Default number of fields in a record.
    */
   public static final String FIELD_COUNT_PROPERTY_DEFAULT = "10";
-  
+
   private List<String> fieldnames;
 
   /**
@@ -391,7 +389,8 @@ public class CoreWorkload extends Workload {
     int fieldlength =
         Integer.parseInt(p.getProperty(FIELD_LENGTH_PROPERTY, FIELD_LENGTH_PROPERTY_DEFAULT));
     int minfieldlength =
-        Integer.parseInt(p.getProperty(MIN_FIELD_LENGTH_PROPERTY, MIN_FIELD_LENGTH_PROPERTY_DEFAULT));
+        Integer.parseInt(
+            p.getProperty(MIN_FIELD_LENGTH_PROPERTY, MIN_FIELD_LENGTH_PROPERTY_DEFAULT));
     String fieldlengthhistogram = p.getProperty(
         FIELD_LENGTH_HISTOGRAM_FILE_PROPERTY, FIELD_LENGTH_HISTOGRAM_FILE_PROPERTY_DEFAULT);
     if (fieldlengthdistribution.compareTo("constant") == 0) {
@@ -447,8 +446,9 @@ public class CoreWorkload extends Workload {
 
     long insertstart =
         Long.parseLong(p.getProperty(INSERT_START_PROPERTY, INSERT_START_PROPERTY_DEFAULT));
-    long insertcount=
-        Integer.parseInt(p.getProperty(INSERT_COUNT_PROPERTY, String.valueOf(recordcount - insertstart)));
+    long insertcount =
+        Integer.parseInt(
+            p.getProperty(INSERT_COUNT_PROPERTY, String.valueOf(recordcount - insertstart)));
     // Confirm valid values for insertstart and insertcount in relation to recordcount
     if (recordcount < (insertstart + insertcount)) {
       System.err.println("Invalid combination of insertstart, insertcount and recordcount.");
@@ -479,7 +479,8 @@ public class CoreWorkload extends Workload {
       System.out.println("Data integrity is enabled.");
     }
 
-    if (p.getProperty(INSERT_ORDER_PROPERTY, INSERT_ORDER_PROPERTY_DEFAULT).compareTo("hashed") == 0) {
+    if (p.getProperty(INSERT_ORDER_PROPERTY, INSERT_ORDER_PROPERTY_DEFAULT).compareTo("hashed")
+        == 0) {
       orderedinserts = false;
     } else {
       orderedinserts = true;
@@ -516,7 +517,8 @@ public class CoreWorkload extends Workload {
       int opcount = Integer.parseInt(p.getProperty(Client.OPERATION_COUNT_PROPERTY));
       int expectednewkeys = (int) ((opcount) * insertproportion * 2.0); // 2 is fudge factor
 
-      keychooser = new ScrambledZipfianGenerator(insertstart, insertstart + insertcount + expectednewkeys);
+      keychooser = new ScrambledZipfianGenerator(insertstart,
+          insertstart + insertcount + expectednewkeys);
     } else if (requestdistrib.compareTo("latest") == 0) {
       keychooser = new SkewedLatestGenerator(transactioninsertkeysequence);
     } else if (requestdistrib.equals("hotspot")) {
@@ -636,8 +638,9 @@ public class CoreWorkload extends Workload {
         }
 
       } else {
-        System.err.println("Error inserting, not retrying any more. number of attempts: " + numOfRetries +
-            "Insertion Retry Limit: " + insertionRetryLimit);
+        System.err.println(
+            "Error inserting, not retrying any more. number of attempts: " + numOfRetries +
+                "Insertion Retry Limit: " + insertionRetryLimit);
         break;
 
       }
@@ -655,25 +658,25 @@ public class CoreWorkload extends Workload {
   @Override
   public boolean doTransaction(DB db, Object threadstate) {
     String operation = operationchooser.nextString();
-    if(operation == null) {
+    if (operation == null) {
       return false;
     }
 
     switch (operation) {
-    case "READ":
-      doTransactionRead(db);
-      break;
-    case "UPDATE":
-      doTransactionUpdate(db);
-      break;
-    case "INSERT":
-      doTransactionInsert(db);
-      break;
-    case "SCAN":
-      doTransactionScan(db);
-      break;
-    default:
-      doTransactionReadModifyWrite(db);
+      case "READ":
+        doTransactionRead(db);
+        break;
+      case "UPDATE":
+        doTransactionUpdate(db);
+        break;
+      case "INSERT":
+        doTransactionInsert(db);
+        break;
+      case "SCAN":
+        doTransactionScan(db);
+        break;
+      default:
+        doTransactionReadModifyWrite(db);
     }
 
     return true;
@@ -776,7 +779,6 @@ public class CoreWorkload extends Workload {
 
     HashMap<String, ByteIterator> cells = new HashMap<String, ByteIterator>();
 
-
     long ist = measurements.getIntendedStartTimeNs();
     long st = System.nanoTime();
     db.read(table, keyname, fields, cells);
@@ -802,7 +804,7 @@ public class CoreWorkload extends Workload {
     // choose a random scan length
     int len = scanlength.nextValue().intValue();
 
-    HashSet<String> fields = null;
+    HashSet<String> fields = new HashSet<>(fieldnames);
 
     if (!readallfields) {
       // read a random field

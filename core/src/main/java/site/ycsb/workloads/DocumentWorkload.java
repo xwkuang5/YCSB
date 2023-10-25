@@ -887,7 +887,7 @@ public class DocumentWorkload extends Workload {
     // choose a random scan length
     int len = scanlength.nextValue().intValue();
 
-    HashSet<String> fields = null;
+    HashSet<String> fields = new HashSet<>(fieldnames);
 
     if (!readallfields) {
       // read a random field
